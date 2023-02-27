@@ -1,64 +1,55 @@
-const TelegramBot = require('node-telegram-bot-api');
-const NewChatMembers = require('./new-chat-members');
 require('dotenv').config();
+// import * as dbRepo from './db-repo.js';
+// import * as NewChatMembers from './new-chat-members.js';
+// import * as Common from './common.js';
+// import * as TelegramBot from 'node-telegram-bot-api';
 
-// Replace the token with your bot's token
-const token = process.env.BOT_TOKEN;
+const TelegramBot = require('node-telegram-bot-api');
+const NewChatMembers = require('./new-chat-members.js');
+const Common = require('./common.js');
+const dbRepo = require('./db-repo.js');
 
 // Create the bot instance
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 const newChatMembers = new NewChatMembers(bot);
 
-// Define the bot's functions
-// bot.onText(/\/start/, (msg) => {
-//     bot.sendMessage(msg.chat.id, 'Hi there! I am a moderation bot.');
-// });
-
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
-    const message = msg.text;
-    const user = msg.from.username;
+    // skip operation if the message is not from whitelisted chat
+    if (!Common.isWhitelistedChat(chatId)) return;
+
+    await deleteBadWords(msg, bot);
+
+    // const message = msg.text;
+    const userId = msg.from.id;
     console.log('Message obj:', msg);
 
-    const isFirstMessage = await isFirstMessageInChat(msg, bot);
-    if (isFirstMessage && isWhitelistedChat()) {
+    const isFirstMessage = await Common.isFirstMessageInChat(msg, bot);
+    const isRecentMember = dbRepo.isRecentMember(userId);
+    if (isFirstMessage && isRecentMember) {
+        console.log('Handling unwanted message');
         await newChatMembers.noMessagesFromNewUser(chatId, msg.message_id);
 
     } else {
         // moderate regular cases
     }
-    console.log('isFirstMessage', isFirstMessage);
-    await deleteBadWords(msg, bot);
+    console.debug('isFirstMessage', isFirstMessage);
 
 });
-
-let isFirstMessageInChat = async (msg, bot) => {
-    const chatId = msg.chat.id;
-    const message = msg.text;
-    const userId = msg.from.id;
-
-    // Get information about the user in the chat
-    const chatMember = await bot.getChatMember(chatId, userId);
-    console.log('ChatMember', chatMember);
-
-    // Check if this is the first message sent by this user in the chat
-    if (chatMember.status === 'left') {
-        return true;
-    } else {
-        return false;
-    }
-}
 
 let deleteBadWords = async (msg, bot) => {
     const chatId = msg.chat.id;
     const message = msg.text;
 
     // Define the list of inappropriate words
-    const badWords = ['bad_word_1', 'bad_word_2'];
+    const badWords = ['tesst', 'bad_word_1', 'bad_word_2'];
 
     // Check if the message contains any inappropriate language
-    if (badWords.some(badWord => message.includes(badWord))) {
-        await bot.deleteMessage(chatId, msg.message_id);
+    if (message && badWords.some(badWord => message.includes(badWord))) {
+        await bot.deleteMessage(chatId, msg.message_id)
+            .catch((e) => {
+                console.log("Failed deleting message", message, e);
+            });
     }
 }
 
