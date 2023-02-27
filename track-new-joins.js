@@ -2,13 +2,17 @@ const Telegraf = require('telegraf').Telegraf;
 require('dotenv').config();
 const common = require('./common.js');
 const dbRepo = require('./db-repo.js');
+const Common = require("./common");
 
 const bot = new Telegraf(process.env.DOORMAN_BOT_TOKEN);
 const isSilent = process.env.IS_BOT_SILENT;
 
 bot.on('new_chat_members', async (ctx) => {
-    console.log('ChatID:', ctx.chat.id);
+    // console.log('ChatID:', ctx.chat.id);
     // console.log('Context:', ctx);
+
+    // skip operation if the message is not from whitelisted chat
+    if (!Common.isWhitelistedChat(ctx.chat.id)) return;
 
     const newMembers = ctx.message.new_chat_members;
     for (const newMember of newMembers) {
