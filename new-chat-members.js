@@ -1,5 +1,5 @@
 const dbRepo = require('./db-repo.js');
-const Common = require("./common");
+const Common = require("./common.js");
 const isSilent = process.env.IS_BOT_SILENT;
 
 module.exports = class NewChatMembers {
