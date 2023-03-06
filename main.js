@@ -7,33 +7,33 @@ require('dotenv').config();
 const TelegramBot = require('node-telegram-bot-api');
 const NewChatMembers = require('./new-chat-members.js');
 const Common = require('./common.js');
-const dbRepo = require('./db-repo.js');
+const ReadOnlyTimeHandler = require('./handle-readonly-time.js');
 
 // Create the bot instance
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 const newChatMembers = new NewChatMembers(bot);
+const readOnlyTimeHandler = new ReadOnlyTimeHandler(bot);
 
 bot.on('message', async (msg) => {
-    const chatId = msg.chat.id;
     // skip operation if the message is not from whitelisted chat
-    if (!Common.isWhitelistedChat(chatId)) return;
+    if (!Common.isWhitelistedChat(msg.chat.id)) return;
+
+    await readOnlyTimeHandler.handleSilentTime(msg);
+
+    const joinOrLeaveHandled = newChatMembers.handleJoinOrLeaveSystemMessage(msg);
+    if (joinOrLeaveHandled) return; // handled system message => no further actions required
 
     await deleteBadWords(msg, bot);
 
-    // const message = msg.text;
-    const userId = msg.from.id;
-    console.log('Message obj:', msg);
+    // Just FYI:
+    // const actualMessage = msg.text;
+    // const userId = msg.from.id;
+    // console.log('Message obj:', msg);
 
-    const isFirstMessage = await Common.isFirstMessageInChat(msg, bot);
-    const isRecentMember = dbRepo.isRecentMember(userId);
-    if (isFirstMessage && isRecentMember) {
-        console.log('Handling unwanted message');
-        await newChatMembers.noMessagesFromNewUser(chatId, msg.message_id);
+    const isFirstMessageOfRecentMember = await newChatMembers.handleFirstMessageOfNewMember();
 
-    } else {
-        // moderate regular cases
-    }
-    console.debug('isFirstMessage', isFirstMessage);
+    !isFirstMessageOfRecentMember &&
+        handleRegularMessage(msg);
 
 });
 
@@ -53,6 +53,12 @@ let deleteBadWords = async (msg, bot) => {
     }
 }
 
+function handleRegularMessage(msg) {
+    // nothing to do for now
+    return false;
+}
+
+/*
 let handleUserTime = async (msg, bot) => {
     // Get the user who sent the message
     // const user = ctx.message.from;
@@ -73,4 +79,4 @@ let handleUserTime = async (msg, bot) => {
         // Send a direct message to the user with the time they have been a member of the group
         ctx.telegram.sendMessage(user.id, `You have been a member of the group for ${timeDiff} seconds.`);
     }
-}
+}*/

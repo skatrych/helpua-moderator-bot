@@ -44,12 +44,24 @@ module.exports.storeNewMemberInDb = async (newMember) => {
         (new Date()).toDateString());
 };
 
+module.exports.deleteMemberFromDb = async (member) => {
+    const client = await getDbPool().connect();
+    const query = `
+              DELETE FROM members WHERE member_id = $1;
+    `;
+    const values = [member.id];
+    const result = await client.query(query, values);
+    client.release();
+
+    return result;
+};
+
 module.exports.isRecentMember = async (memberId) => {
     const client = await getDbPool().connect();
     const query = `SELECT joined_at FROM members WHERE member_id = $1`;
     const result = await client.query(query, [memberId]);
     const joinedAt = new Date(result['joined_at']).getSeconds();
-    console.log(result);
+    // console.log(result);
     client.release();
 
     return (new Date()).getSeconds() - joinedAt < 3600 * 24;
