@@ -25,11 +25,11 @@ module.exports = class NewChatMembers {
     }
 
     static isNewJoinSystemMessage(msg) {
-        return (msg.new_chat_participant != undefined);
+        return (msg && msg.new_chat_participant != undefined);
     }
 
     static isLeaveChannelSystemMessage(msg) {
-        return (msg.left_chat_participant != undefined);
+        return (msg && msg.left_chat_participant != undefined);
     }
 
     async storeNewMember(newMember) {

@@ -18,10 +18,12 @@ bot.on('message', async (msg) => {
     // skip operation if the message is not from whitelisted chat
     if (!Common.isWhitelistedChat(msg.chat.id)) return;
 
-    await readOnlyTimeHandler.handleSilentTime(msg);
+    // console.log('Message obj:', msg);
 
-    const joinOrLeaveHandled = newChatMembers.handleJoinOrLeaveSystemMessage(msg);
+    const joinOrLeaveHandled = await newChatMembers.handleJoinOrLeaveSystemMessage(msg);
     if (joinOrLeaveHandled) return; // handled system message => no further actions required
+
+    await readOnlyTimeHandler.handleSilentTime(msg);
 
     await deleteBadWords(msg, bot);
 

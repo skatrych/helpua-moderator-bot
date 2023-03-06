@@ -9,11 +9,16 @@ module.exports = class ReadOnlyTimeHandler {
         this.bot = bot;
     }
     async handleSilentTime(msg) {
+        let isDeleted = false;
         // delete message from chat if this is silent time
-        ReadOnlyTimeHandler.isSilentTime(msg) &&
+        if (ReadOnlyTimeHandler.isSilentTime(msg)) {
             await this.bot.deleteMessage(msg.chat.id, msg.message_id);
+            isDeleted = true;
 
-        !isSilent && ctx.reply(`Message of user ${msg.from.username} is silenced!`);
+            !isSilent && ctx.reply(`Message of user ${msg.from.username} is silenced!`);
+        }
+
+        return isDeleted;
     }
 
     static isSilentTime(msg) {
@@ -21,14 +26,18 @@ module.exports = class ReadOnlyTimeHandler {
     }
 
     static isTooLateForMessage(msg) {
-        const nowDate = new Date(msg.date);
+        const nowDate = this.dateFromUnixTimestamp(msg.date);
 
         return nowDate.getHours() >= hoursIsTooLate;
     }
 
     static isTooEarlyForMessage(msg) {
-        const nowDate = new Date(msg.date);
+        const nowDate = this.dateFromUnixTimestamp(msg.date);
 
         return nowDate.getHours() >= hoursIsTooEarly;
+    }
+
+    static dateFromUnixTimestamp(unixTimeStamp) {
+        return new Date(unixTimeStamp * 1000);
     }
 }
