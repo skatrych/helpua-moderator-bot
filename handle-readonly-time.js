@@ -13,6 +13,7 @@ module.exports = class ReadOnlyTimeHandler {
         // delete message from chat if this is silent time
         if (ReadOnlyTimeHandler.isSilentTime(msg)) {
             await this.bot.deleteMessage(msg.chat.id, msg.message_id);
+            console.debug("Silenced message from ${msg.from.username} at " + this.dateFromUnixTimestamp(msg.date).toISOString());
             isDeleted = true;
 
             !isSilent && ctx.reply(`Message of user ${msg.from.username} is silenced!`);
