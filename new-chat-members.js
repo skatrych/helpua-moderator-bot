@@ -15,13 +15,13 @@ module.exports = class NewChatMembers {
     }
 
     async handleJoinOrLeaveSystemMessage(msg) {
-        NewChatMembers.isNewJoinSystemMessage() &&
+        NewChatMembers.isNewJoinSystemMessage(msg) &&
             await this.storeNewMember(msg.new_chat_participant);
 
         NewChatMembers.isLeaveChannelSystemMessage(msg) &&
             await this.deleteExistingMember(msg.left_chat_participant);
 
-        return NewChatMembers.isNewJoinSystemMessage() || NewChatMembers.isLeaveChannelSystemMessage(msg);
+        return NewChatMembers.isNewJoinSystemMessage(msg) || NewChatMembers.isLeaveChannelSystemMessage(msg);
     }
 
     static isNewJoinSystemMessage(msg) {
@@ -33,7 +33,7 @@ module.exports = class NewChatMembers {
     }
 
     async storeNewMember(newMember) {
-        console.log('New member to be added: ', newMember.username);
+        console.debug('Handle adding New member: ', newMember.username);
         const addedMember = await dbRepo.storeNewMemberInDb(newMember)
             .catch((e) => { console.error('Fail adding new member. ', e.detail)});
         console.debug('Result ', addedMember ? addedMember.rowCount: false);
@@ -42,14 +42,18 @@ module.exports = class NewChatMembers {
     }
 
     async deleteExistingMember(member) {
+        console.debug('Handling deletion of the member: ', member.username);
         return await dbRepo.deleteMemberFromDb(member)
             .catch((e) => { console.error('Fail deleting a member that left the channel. ', e.detail)});
     }
 
-    async handleFirstMessageOfNewMember(msg) {
-        const isFirstMessage = await Common.isFirstMessageInChat(msg, this.bot);
-        const isRecentMember = dbRepo.isRecentMember(msg.from.id);
-        if (isFirstMessage && isRecentMember) {
+    async handleFirstMessageOfNewMember(msg, member) {
+        // const isFirstMessage = await Common.isFirstMessageInChat(msg, this.bot);
+        const chatMember = member;
+        if (chatMember.status == 'creator' || chatMember.status == 'administrator') return false; // don't moderate administrator's messages
+
+        const isRecentMember = await dbRepo.isRecentMember(msg.from.id);
+        if (isRecentMember) {
             console.debug('Handling unwanted message');
             await newChatMembers.noMessagesFromNewUser(chatId, msg.message_id);
 

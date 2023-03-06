@@ -34,7 +34,7 @@ module.exports = class ReadOnlyTimeHandler {
     static isTooEarlyForMessage(msg) {
         const nowDate = this.dateFromUnixTimestamp(msg.date);
 
-        return nowDate.getHours() >= hoursIsTooEarly;
+        return nowDate.getHours() <= hoursIsTooEarly;
     }
 
     static dateFromUnixTimestamp(unixTimeStamp) {

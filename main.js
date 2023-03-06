@@ -23,7 +23,8 @@ bot.on('message', async (msg) => {
     const joinOrLeaveHandled = await newChatMembers.handleJoinOrLeaveSystemMessage(msg);
     if (joinOrLeaveHandled) return; // handled system message => no further actions required
 
-    await readOnlyTimeHandler.handleSilentTime(msg);
+    const handledAsSilentTime = await readOnlyTimeHandler.handleSilentTime(msg);
+    if (handledAsSilentTime) return; // message silenced => no further actions required
 
     await deleteBadWords(msg, bot);
 
@@ -32,9 +33,10 @@ bot.on('message', async (msg) => {
     // const userId = msg.from.id;
     // console.log('Message obj:', msg);
 
-    const isFirstMessageOfRecentMember = await newChatMembers.handleFirstMessageOfNewMember();
+    const chatMemberStatus = await bot.getChatMember(msg.chat.id, msg.from.id);
+    const handledAsFirstMessageOfRecentMember = await newChatMembers.handleFirstMessageOfNewMember(msg, chatMemberStatus);
 
-    !isFirstMessageOfRecentMember &&
+    !handledAsFirstMessageOfRecentMember &&
         handleRegularMessage(msg);
 
 });
