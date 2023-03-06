@@ -1,0 +1,36 @@
+services:
+  helpua-moderator-bot:
+    image: helpua-moderator-bot:latest
+#    ports:
+#      - "443:8043"
+    networks:
+      - helpua-bot
+#    configs:
+#      - bot-config
+#    secrets:
+#      - server-certificate
+
+#  backend:
+#    image: awesome/database
+#    volumes:
+#      - db-data:/etc/data
+#    networks:
+#      - helpua-bot
+
+#volumes:
+#  db-data:
+#    driver: flocker
+#    driver_opts:
+#      size: "10GiB"
+
+#configs:
+#  httpd-config:
+#    external: true
+
+#secrets:
+#  server-certificate:
+#    external: true
+
+networks:
+  # The presence of these objects is sufficient to define them
+  helpua-bot: {}
