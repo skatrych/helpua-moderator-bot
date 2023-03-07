@@ -60,9 +60,11 @@ module.exports.isRecentMember = async (memberId) => {
     const client = await getDbPool().connect();
     const query = `SELECT joined_at FROM members WHERE member_id = $1`;
     const result = await client.query(query, [memberId]);
-    const joinedAt = new Date(result.rows[0]['joined_at']).getTime();
-    // console.log(result);
     client.release();
+
+    if (result.rows === undefined || result.rows.length == 0) return false;
+
+    const joinedAt = new Date(result.rows[0]['joined_at']).getTime();
 
     return (new Date()).getTime() - joinedAt < 3600 * 24 * 1000; // handled in miliseconds
 }
