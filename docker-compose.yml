@@ -3,8 +3,10 @@ services:
     image: helpua-moderator-bot:latest
 #    ports:
 #      - "443:8043"
-    networks:
-      - helpua-bot
+#    networks:
+#      - helpua-bot
+#    logging:
+#      driver: syslog
 #    configs:
 #      - bot-config
 #    secrets:
@@ -31,6 +33,6 @@ services:
 #  server-certificate:
 #    external: true
 
-networks:
+#networks:
   # The presence of these objects is sufficient to define them
-  helpua-bot: {}
+#  helpua-bot: {}
