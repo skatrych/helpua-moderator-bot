@@ -16,7 +16,7 @@ module.exports = class NewChatMembers {
 
     async handleJoinOrLeaveSystemMessage(msg) {
         NewChatMembers.isNewJoinSystemMessage(msg) &&
-            await this.storeNewMember(msg.new_chat_participant);
+            await this.storeNewMember(msg.new_chat_member);
 
         NewChatMembers.isLeaveChannelSystemMessage(msg) &&
             await this.deleteExistingMember(msg.left_chat_participant);
@@ -25,7 +25,7 @@ module.exports = class NewChatMembers {
     }
 
     static isNewJoinSystemMessage(msg) {
-        return (msg && msg.new_chat_participant != undefined);
+        return (msg && msg.new_chat_member != undefined);
     }
 
     static isLeaveChannelSystemMessage(msg) {

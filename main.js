@@ -16,7 +16,7 @@ const readOnlyTimeHandler = new ReadOnlyTimeHandler(bot);
 
 bot.on('message', async (msg) => {
     // skip operation if the message is not from whitelisted chat
-    if (!Common.isWhitelistedChat(msg.chat.id)) return;
+    // if (!Common.isWhitelistedChat(msg.chat.id)) return;
 
     // console.log('Message obj:', msg);
 
