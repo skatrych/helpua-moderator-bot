@@ -34,10 +34,10 @@ bot.on('message', async (msg) => {
     // console.log('Message obj:', msg);
 
     const chatMemberStatus = await bot.getChatMember(msg.chat.id, msg.from.id);
-    const handledAsFirstMessageOfRecentMember = await newChatMembers.handleFirstMessageOfNewMember(msg, chatMemberStatus);
+    // const handledAsFirstMessageOfRecentMember = await newChatMembers.handleFirstMessageOfNewMember(msg, chatMemberStatus);
 
-    !handledAsFirstMessageOfRecentMember &&
-        handleRegularMessage(msg);
+    // !handledAsFirstMessageOfRecentMember &&
+    //    handleRegularMessage(msg);
 
 });
 
