@@ -3,8 +3,10 @@ services:
     image: helpua-moderator-bot:latest
 #    ports:
 #      - "443:8043"
-    networks:
-      - host
+    network_mode: "host"        
+    restart: on-failure
+#    networks:
+#      - host
 #    logging:
 #      driver: syslog
 #    configs:
