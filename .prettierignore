@@ -1,0 +1,29 @@
+# Prettier is deliberately not allowed to reformat these four files.
+#
+# Each one contains a line whose exact shape is copied into the emitted
+# JavaScript by TypeScript's printer, so reformatting it changes `dist/`:
+#
+#   announcement/announcement.module.ts
+#       The `imports: [...]` array. Left inline, TypeScript emits it on one
+#       line; broken up, it emits one element per line. This is the only case
+#       where formatting changes the compiled bytes.
+#
+#   announcement/announcement.service.ts
+#   bot-provider/bot-provider.ts
+#       Statement layout pinned token-by-token by the runtime source maps
+#       (a blank line inside getNightlyClosureCronExpression; a 96-column
+#       sendMessageTmp signature the original kept unwrapped).
+#
+#   database-provider/prisma.service.ts
+#       An 88-column class header with two `implements` clauses, which the
+#       original likewise left unwrapped.
+#
+# These are the only places where the recovered source departs from the
+# `.prettierrc` style, and they are what keep the build byte-identical to the
+# runtime snapshot. Re-run ./scripts/verify-against-snapshot.sh before removing
+# an entry here. See docs/RECONSTRUCTION.md sections 3 and 4.
+
+src/announcement/announcement.module.ts
+src/announcement/announcement.service.ts
+src/bot-provider/bot-provider.ts
+src/database-provider/prisma.service.ts

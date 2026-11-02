@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  dyiakon-bot:
+    image: dyiakonbot:v0.10
+    network_mode: host
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - CHAT_ID=${CHAT_ID}
+      - DATABASE_URL=${DATABASE_URL}
+      - IS_TOO_EARLY=${IS_TOO_EARLY}
+      - IS_TOO_LATE=${IS_TOO_LATE}
+    restart: unless-stopped
