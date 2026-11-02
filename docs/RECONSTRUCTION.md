@@ -95,6 +95,7 @@ python3 scripts/check-sourcemap-equivalence.py # source-map equivalence proof
 npx jest --ci                                  # isolated unit tests
 npx eslint "src/**/*.ts"                       # lint
 npx prettier --check "src/**/*.ts"             # formatting
+./scripts/verify-verification-harness.sh       # proves the two checks above fail closed
 ```
 
 `verify-against-snapshot.sh` compiles with `tsc -p tsconfig.build.json` and
@@ -103,6 +104,26 @@ compares every emitted file against the snapshot with `cmp`.
 difference is *only* a source-line offset that is monotone in one direction with
 identical columns — a signature that only lines emitting no code at all
 (blank lines, or comments removed by `removeComments: true`) can produce.
+
+**Both are fail-closed, and that property is itself tested.** An earlier
+revision of both scripts printed a diagnosis but still exited 0 — it captured
+the compiler's status without acting on it, counted missing files without
+enforcing them, accepted a nonexistent `SNAPSHOT_DIST` (zero comparisons, zero
+exit), and the map checker accepted an empty snapshot because `os.walk` simply
+yielded nothing. A verifier that passes on nothing is worse than none, because
+it manufactures evidence. They now:
+
+* reject a missing/empty `SNAPSHOT_DIST`, a missing compiler, and a snapshot
+  with no `.js` / `.d.ts` / `.js.map` to compare (exit 1);
+* fail on **any** `tsc` diagnostic, and on any file-set mismatch in *either*
+  direction, so neither a pruned nor an inflated build can slip through;
+* fail on any differing `.js` or `.d.ts`, and require `0 divergent` maps;
+* distinguish exit 1 (genuinely divergent maps) from exit 2 (bad inputs), so a
+  typo'd path can never be mistaken for a real finding.
+
+The four legitimately offset-only maps are still accepted — deliberately, not by
+accident, and `verify-verification-harness.sh` asserts that acceptance as a
+positive control so a future over-tightening cannot silently break it.
 
 ### Result
 
@@ -116,6 +137,7 @@ identical columns — a signature that only lines emitting no code at all
 | `npx jest --ci` | **90 passed / 90** across 7 suites — no network, no database, no fixtures on disk |
 | `npx eslint "src/**/*.ts"` | **exit 0** |
 | `npx prettier --check "src/**/*.ts"` | **exit 0** (4 files deliberately ignored, see §4) |
+| `./scripts/verify-verification-harness.sh` | **16/16**, exit 0 — 14 negative-path cases plus a positive control |
 
 Byte-identical `.js` plus byte-identical `.d.ts` means the reconstructed
 `src/` is **compilation-equivalent** to the program that ran in production: same
@@ -267,6 +289,37 @@ reproduced, and now pinned by tests so a future change is a conscious decision:
 10. **`BotProvider.sendMessage(chatId: string, …)`** types the chat id as
     `string`, while callers pass `msg.chat.id: number` — invisible in JS, and
     why `AppService.bot` is typed `any` (see §8).
+11. **Long polling is the only transport.** `BotProvider` builds
+    `new TelegramBot(token, { polling: Boolean(Number(BOT_POLLING)) })` and
+    nothing else ever starts a transport: there is no webhook, no HTTP server
+    and no Express app anywhere in `src/` (verified by grep). So
+    `BOT_POLLING=0`/unset is not "webhook mode" — the process boots, registers
+    its cron job, logs `Bot started...`, and then **never receives an update**.
+    The `docker-compose.yaml` has no proxy and publishes no ports, so a
+    webhook-mode deployment was evidently never wired up in these artefacts.
+12. **The silent window ignores consent entirely, and runs first.**
+    `processStandardGroupMessage` calls `handleSilentTime` and returns on a hit;
+    the consent check is only reached afterwards. `SilentTimeService` never
+    consults `ConsentService`. A user who accepted the rules still has every
+    in-window message deleted. Consent only gates posting *outside* the window.
+13. **There is exactly one scheduled announcement, and it is the closure one.**
+    `onModuleInit` registers `NightlyClosureAnnouncement` and nothing else. No
+    opening/morning job exists, so the group is never announced as re-opened.
+14. **`GROUP_CLOSURE_ANNOUNCEMENT` and `CHAT_ID` have no default.** They are
+    read with a single-argument `configService.get(...)`, unlike
+    `IS_TOO_LATE` which does get a `'23'` default. Unset, the job hands
+    `undefined` to `sendMessage` — and per item 8 that call is not awaited, so
+    the resulting rejection is uncontained.
+
+### Documentation correction note
+
+The first draft of `README.md` / `env.example` in commit `0ac358a` described
+three things the recovered program does not do: consented users bypassing the
+silent window, a webhook deployment mode, and an opening announcement. It also
+called `GROUP_CLOSURE_ANNOUNCEMENT` optional and claimed the un-generated
+Prisma client still built. All five were corrected against the source rather
+than softened, and items 11–14 above were written from the same re-reading. No
+behaviour was changed while correcting them.
 
 ---
 
@@ -295,16 +348,26 @@ reproduced, and now pinned by tests so a future change is a conscious decision:
 5. **`npm run test:e2e` is broken by design of the snapshot**: it points at
    `./test/jest-e2e.json`, which was not part of the deployed artefacts and is
    not reconstructed here (no e2e specs exist to configure).
-6. **Prisma client generation.** `npm ci` was run in an environment where
-   install scripts are blocked by policy, so the Prisma engine binaries were
-   not fetched and `node_modules/.prisma/client` remains the un-generated stub
-   (`PrismaClient: any`). *The build is unaffected* — a stub and a generated
-   client erase to identical `.js`, and `this.prisma.userConsent` type-checks
-   against `any`. For real development run `npx prisma generate` first; without
-   it, model access has no type safety.
-7. **`shadowDatabaseUrl` is required by the schema** and `SHADOW_DATABASE_URL`
-   is not in `.env.example`; `prisma migrate` will fail until it is supplied.
-   The un-committed `deacon_bot_shadow.sql` is presumably an artefact of that
+6. **Prisma client generation is a hard build prerequisite when install scripts
+   are skipped.** This claim was previously wrong in this file, and an
+   independent review corrected it: there is no "un-generated stub" that still
+   compiles. Verified by reproducing both directions:
+
+   * `npm ci --ignore-scripts` produces **no** `node_modules/.prisma/client`
+     directory at all, and `npm run build` then **fails with 5 errors**
+     — `TS2305` for `PrismaClient`, plus `userConsent` (×2), `$connect` and
+     `$disconnect`.
+   * `npx prisma generate` afterwards succeeds offline from cached engines with
+     dummy loopback URLs and no database connection, and the build then exits 0
+     and reproduces the snapshot byte-for-byte.
+
+   A normal `npm ci` runs Prisma's `postinstall` and needs no extra step, which
+   is why the original claim went unnoticed. Anyone scripting installs with
+   `--ignore-scripts` (CI, distro Node, reproducible builds) must add
+   `npx prisma generate`.
+7. **`shadowDatabaseUrl` is required by the schema** and was absent from the
+   original sample env file; `prisma migrate` fails until `SHADOW_DATABASE_URL`
+   is supplied. The un-committed shadow dump is presumably an artefact of that
    setup.
 8. **Source maps in production reference a `src/` that no longer existed** —
    the reason this reconstruction was possible at all. Keeping `.js.map` in the
@@ -322,12 +385,16 @@ sha256sum /home/agentdev/workspaces/helpua-moderator-bot.tar.gz
 # 2. Extract it somewhere OUTSIDE the repo
 mkdir -p /tmp/snap && tar -xzf ~/workspaces/helpua-moderator-bot.tar.gz -C /tmp/snap
 
-# 3. Build and compare byte-for-byte
+# 3. Build and compare byte-for-byte.
 npm ci
+npx prisma generate   # REQUIRED if step 3 used --ignore-scripts; see §8 item 6
 SNAPSHOT_DIST=/tmp/snap/helpua-moderator-bot/dist ./scripts/verify-against-snapshot.sh
 SNAPSHOT_DIST=/tmp/snap/helpua-moderator-bot/dist python3 scripts/check-sourcemap-equivalence.py
 
-# 4. Run the isolated suite (no Telegram, no Postgres, no fixtures on disk)
+# 4. Prove the verification harness itself cannot silently pass
+SNAPSHOT_DIST=/tmp/snap/helpua-moderator-bot/dist ./scripts/verify-verification-harness.sh
+
+# 5. Run the isolated suite (no Telegram, no Postgres, no fixtures on disk)
 npx jest --ci
 ```
 
