@@ -7,9 +7,16 @@
 #   SNAPSHOT_DIST=/path/to/snapshot/dist ./scripts/verify-against-snapshot.sh
 #   ./scripts/verify-against-snapshot.sh [extra tsc args...]
 #
-# Exit status is meaningful. This script is FAIL-CLOSED: it exits non-zero on a
-# missing/empty snapshot, a missing compiler, any tsc diagnostic, any missing or
-# differing .js / .d.ts, and any file-set mismatch in either direction.
+# Exit status is meaningful and DISCRIMINATING, so that callers (and the
+# self-test) can tell a broken check from a genuine finding:
+#
+#   0  the build reproduces the runtime snapshot
+#   1  the check ran and found a real problem (tsc diagnostic, differing or
+#      missing/extra artefact, divergent source map)
+#   2  the check could not run at all (bad SNAPSHOT_DIST, missing compiler,
+#      snapshot with nothing to compare)
+#
+# It is never 0 on an empty comparison.
 #
 # `.js.map` files are compared too, but a byte difference there is NOT by itself
 # a failure: 4 of the 15 maps legitimately differ because the recovered source
@@ -28,12 +35,13 @@ SNAP="${SNAPSHOT_DIST-/home/agentdev/workspaces/.snapshot-2-reconstruct/helpua-m
 OUT="$REPO/dist"
 TSC="$REPO/node_modules/.bin/tsc"
 
-fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+fail()     { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+badinput() { printf 'BAD INPUT: %s\n' "$*" >&2; exit 2; }
 
 # ── 1. Inputs must exist and be non-empty ───────────────────────────────────
-[ -n "$SNAP" ]                 || fail "SNAPSHOT_DIST is set but empty (unset it to use the default location)"
-[ -d "$SNAP" ]                 || fail "snapshot dist directory not found: $SNAP"
-[ -x "$TSC" ]                  || fail "compiler not found: $TSC (run 'npm ci' and 'npx prisma generate' first)"
+[ -n "$SNAP" ]                 || badinput "SNAPSHOT_DIST is set but empty (unset it to use the default location)"
+[ -d "$SNAP" ]                 || badinput "snapshot dist directory not found: $SNAP"
+[ -x "$TSC" ]                  || badinput "compiler not found: $TSC (run 'npm ci' first)"
 
 snap_js=$(find "$SNAP" -name '*.js'   -type f | sed "s|^$SNAP/||" | sort)
 snap_dts=$(find "$SNAP" -name '*.d.ts' -type f | sed "s|^$SNAP/||" | sort)
@@ -45,15 +53,15 @@ n_js=$(count "$snap_js"); n_dts=$(count "$snap_dts"); n_map=$(count "$snap_map")
 
 # A snapshot with nothing to compare against proves nothing — that is exactly
 # how a silently-passing verifier gets written.
-[ "$n_js"  -gt 0 ] || fail "snapshot has no .js artefacts: $SNAP"
-[ "$n_dts" -gt 0 ] || fail "snapshot has no .d.ts artefacts: $SNAP"
-[ "$n_map" -gt 0 ] || fail "snapshot has no .js.map artefacts: $SNAP"
+[ "$n_js"  -gt 0 ] || badinput "snapshot has no .js artefacts: $SNAP"
+[ "$n_dts" -gt 0 ] || badinput "snapshot has no .d.ts artefacts: $SNAP"
+[ "$n_map" -gt 0 ] || badinput "snapshot has no .js.map artefacts: $SNAP"
 
 # ── 2. Compile ─────────────────────────────────────────────────────────────
-cd "$REPO" || fail "cannot enter $REPO"
+cd "$REPO" || badinput "cannot enter $REPO"
 rm -rf "$OUT"
 
-tsc_log=$(mktemp) || fail "cannot create temp file"
+tsc_log=$(mktemp) || badinput "cannot create temp file"
 trap 'rm -f "$tsc_log"' EXIT
 
 "$TSC" -p tsconfig.build.json "$@" > "$tsc_log" 2>&1
@@ -119,7 +127,9 @@ if [ "$map_bad" -ne 0 ]; then
   echo "adjudicating $map_bad differing .js.map file(s)..."
   SNAPSHOT_DIST="$SNAP" python3 "$REPO/scripts/check-sourcemap-equivalence.py"
   map_rc=$?
-  [ "$map_rc" -eq 0 ] || fail "source-map checker rejected the build (exit $map_rc)"
+  # Propagate, do not collapse: the checker's 1 (divergent) and 2 (could not
+  # run) mean different things, and must stay distinguishable here too.
+  [ "$map_rc" -eq 0 ] || { printf 'source-map checker rejected the build\n' >&2; exit "$map_rc"; }
   echo "OK: every .js.map difference is proven to be a non-semantic source-line offset."
 else
   echo
