@@ -113,8 +113,8 @@ exit), and the map checker accepted an empty snapshot because `os.walk` simply
 yielded nothing. A verifier that passes on nothing is worse than none, because
 it manufactures evidence. They now:
 
-* reject a missing/empty `SNAPSHOT_DIST`, a missing compiler, and a snapshot
-  with no `.js` / `.d.ts` / `.js.map` to compare (exit 1);
+* reject a missing or genuinely empty `SNAPSHOT_DIST`, a missing compiler, and
+  a snapshot with no `.js` / `.d.ts` / `.js.map` to compare (exit 2);
 * fail on **any** `tsc` diagnostic, and on any file-set mismatch in *either*
   direction, so neither a pruned nor an inflated build can slip through;
 * fail on any differing `.js` or `.d.ts`, and require `0 divergent` maps;
@@ -124,6 +124,40 @@ it manufactures evidence. They now:
 The four legitimately offset-only maps are still accepted — deliberately, not by
 accident, and `verify-verification-harness.sh` asserts that acceptance as a
 positive control so a future over-tightening cannot silently break it.
+
+### Why the self-test asserts exact exit codes, not "non-zero"
+
+A first version of that self-test was itself fail-open, and an independent
+re-review caught it. Two of its cases were vacuous:
+
+* the "existing but empty directory" cases pointed at a path that was never
+  created, so they were really second tests of the *nonexistent*-path branch —
+  the empty-directory guard was never executed;
+* the "divergent map" case ran while `dist/` was still deleted by the preceding
+  case, so the checker bailed out on the missing generated tree (exit 2) and
+  never reached the map comparison it claimed to test.
+
+The decisive evidence: neutering the checker's verdict line
+(`return 1 if bad else 0` → `return 0`) made it silently accept genuinely
+divergent maps, and that self-test still reported 16 passed / 0 failed. Green,
+and blind.
+
+Both are fixed, and the assertions are now exact: exit **2** means "the check
+could not run", exit **1** means "the check ran and found this", and each case
+also greps for its specific diagnosis. Reaching a *different* failure for an
+unrelated reason now fails the case instead of passing it — which is precisely
+how the divergent-map case was hiding.
+
+Two guards were added so the self-test cannot silently decay the same way:
+
+* `mkdir -p "$TMP/emptydir"` is verified to exist and to be empty before any
+  case uses it;
+* a **mutation control** re-runs the divergent case against a checker whose
+  verdict line has been neutered in memory, and requires that mutant to *accept*
+  (exit 0). If it ever fails to, the exit-1 asserted above is not coming from the
+  verdict logic, and the control reports it. Verified end to end: applying that
+  mutation to the committed checker makes this self-test report 18 passed /
+  **2 failed** and exit 1, where the old one reported 16/16 and exit 0.
 
 ### Result
 
@@ -137,7 +171,7 @@ positive control so a future over-tightening cannot silently break it.
 | `npx jest --ci` | **90 passed / 90** across 7 suites — no network, no database, no fixtures on disk |
 | `npx eslint "src/**/*.ts"` | **exit 0** |
 | `npx prettier --check "src/**/*.ts"` | **exit 0** (4 files deliberately ignored, see §4) |
-| `./scripts/verify-verification-harness.sh` | **16/16**, exit 0 — 14 negative-path cases plus a positive control |
+| `./scripts/verify-verification-harness.sh` | **20/20**, exit 0 — 17 negative-path cases (each asserting an exact exit status *and* a diagnosis), 2 positive controls, 1 mutation control |
 
 Byte-identical `.js` plus byte-identical `.d.ts` means the reconstructed
 `src/` is **compilation-equivalent** to the program that ran in production: same

@@ -103,6 +103,13 @@ file-set mismatch in either direction, or any differing `.js` / `.d.ts` exits
 non-zero. A differing `.js.map` is accepted only after the map checker proves
 the offset never changes direction and never moves a column.
 
+Exit codes are discriminating, in both scripts and in the self-test: **1** means
+the check ran and found a real problem, **2** means it could not run at all.
+Every self-test case asserts an exact status plus a specific diagnosis rather
+than "non-zero", so failing for an unrelated reason is itself a failure — and a
+mutation control re-runs the divergent-map case against a deliberately neutered
+checker to prove the suite would notice if the checker went blind.
+
 Expected:
 
 ```
