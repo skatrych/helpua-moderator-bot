@@ -1,4 +1,29 @@
+# dependencies
 node_modules/
+
+# build output (reproducible: `npm run build`)
+dist/
+*.tsbuildinfo
+
+# test output
+coverage/
+__pycache__/
+*.pyc
+
+# local environment — never commit a real .env
 .env
+.env.local
+.env.*.local
+
+# runtime snapshot artefacts are inputs to the reconstruction, not sources:
+# the archive itself, its extracted tree, and the database dump must stay out
+# of git (see docs/RECONSTRUCTION.md).
+*.tar.gz
+*.sql
+snapshot/
+
+# editors
+.idea/
+.vscode/
 *.xml
 *.iml
